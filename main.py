@@ -12,16 +12,11 @@ load_dotenv()
 TOKEN = getenv('TOKEN')
 
 data = []
-base_value = ['РУБ', 'EUR', 'USD']
+base_value = {'RUB', 'EUR', 'USD'}
 
 base_url = f'https://data.fixer.io/api/latest?access_key={TOKEN}'
 
 class CreateUser:
-
-    # def __init__(self) -> None:
-    #     self.user_id = None
-    #     self.name = None
-    #     self.user_value = None
 
     def create_user(self):
         user_in_redis = redis_client.get(name='user:1') # Здесь написано постоянное значение "user:1" (что нельзя делать), 
@@ -51,26 +46,39 @@ class CreateUser:
         except Exception:
             print('Произошла ошибка')
 
+
     def buy_value(self):
         user_data = loads(redis_client.get(name='user:1'))
-        print(user_data)
+        count_for_buy = int(input(f'Какое количество {user_data['user_buy']} купить?: '))
+        if count_for_buy >= 1:
+            respons = loads(httpx.get(base_url).content)
+            user_value = respons['rates'][user_data['user_value']]
+            user_buy_value = respons['rates'][user_data['user_buy']]
+            if user_data['user_buy'] == 'EUR':
+                payment_cost = ((user_value * user_buy_value) * count_for_buy)  * 1.03
+                commission = payment_cost * 0.03
+                print(f'К оплате {payment_cost:.2f} {user_data['user_value']}, комиссия составила: {commission:.2f} {user_data['user_value']}')
+            else:
+                print(user_value)
+                print(user_buy_value)
+                payment_cost = count_for_buy * (user_value / user_buy_value)
+                commission = payment_cost * 0.03
+                print(f'К оплате {payment_cost:.2f} {user_data['user_value']}, комиссия составила: {commission:.2f} {user_data['user_value']}')
+        else:
+            print('Число должно быть > 0')
 
-        count_for_buy = int(input(f'Какое количество {user_data} купить?'))
-        r = httpx.get(base_url)
-        print(r.content)
+    def delete_user(self):
+        user_for_delete = redis_client.delete('user:1')
+        base_value.update(['RUB', 'EUR', 'USD'])
+        print('Пользователь удален')
 
-
-# async def buy_value():
-#     async with httpx.AsyncClient() as client:
-#         r = await client.get(base_url)
-#         print('Получили данные')
-#         return loads(r.content)
         
 async def main():
 
     while True:
+
         print('==========================')
-        print('''1 | Создать пользователя\n2 | Купить валюту\n3 | Все пользователи\n0 | Выйти''')
+        print('''1 | Создать пользователя\n2 | Купить валюту\n3 | Все пользователи\n4 | Удалить пользователя\n0 | Выйти''')
         print('==========================')
 
         user_map =  int(input('Выберите пункт: '))
@@ -89,9 +97,14 @@ async def main():
                     print(loads(user_in_redis))
                 else:
                     print(data) if len(data) >= 1 else print('В базе пусто')
+            
+            case 4:
+                CreateUser().delete_user()
+
             case 0:
                 print('Вы вышли из программы')
                 break
+
             case _:
                 print('Я тебя не понимаю')
 
